@@ -1,5 +1,5 @@
 /* =========================================================
-   server.js — Complete Unified Controller
+   server.js — Complete Unified Controller (Sanitized)
    Features:
    - Full Persistence via Firebase Firestore & LocalStorage
    - Mandatory APMC T&C Checkbox Gate
@@ -12,6 +12,7 @@
    - Strict 9-Digit Kisan Credit Card (KCC) Gate
    - GSM SMS Gateway Dispatcher with DLT Templates (No Emojis)
    - Multi-Bot Queue Simulation Engine
+   - Deduplicated Queue Construction Engine
    - Progressive Queue Scheduling (20s -> 3m -> 5m -> 10m)
    - 13s Assay Moisture & Treasury DBT Verification Gate
    - Automated Financial Ledger Transitions (Pending -> Cleared)
@@ -20,17 +21,13 @@
    - Live Procurement Journey Stepper Readout
    ========================================================= */
 
-/* =========================================================
-   server.js — Configuration (Environment Placeholders)
-   ========================================================= */
-
-// TODO: Replace with your Google OAuth 2.0 Web Client ID from Google Cloud Console
+// TODO: Insert your Google Client ID from Google Cloud Console
 const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
 const SESSION_DURATION_HOURS = 24;
 const DAILY_BOOKING_LIMIT = 5;
 
 /* ================= FIREBASE FIRESTORE CONFIGURATION ================= */
-// TODO: Replace with your Firebase Project Web SDK credentials from Firebase Console
+// TODO: Insert your Firebase project configuration
 const firebaseConfig = {
     apiKey: "YOUR_FIREBASE_API_KEY",
     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -936,10 +933,10 @@ function renderPaymentsTable() {
     }).join('');
 }
 
+/* ================= DEDUPLICATED QUEUE ENGINE ================= */
 function rebuildQueueStructure() {
     const queueMap = new Map();
 
-    // 1. Previous load (Cleared)
     if (nowServing > 1) {
         queueMap.set(nowServing - 1, {
             token: nowServing - 1,
@@ -949,7 +946,6 @@ function rebuildQueueStructure() {
         });
     }
 
-    // 2. Active Weighbridge Slot (Default placeholder)
     queueMap.set(nowServing, {
         token: nowServing,
         label: "Weighbridge Active Truck",
@@ -957,11 +953,9 @@ function rebuildQueueStructure() {
         status: 'active'
     });
 
-    // 3. Populate from simulated background farmers
     activeSimulationQueue.forEach(item => {
         if (item.token >= nowServing) {
             if (item.token === nowServing) {
-                // If this simulated farmer is the one currently on the scale, update the active label
                 queueMap.set(item.token, {
                     token: item.token,
                     label: `${item.label} (Weighbridge Scale 01)`,
@@ -974,7 +968,6 @@ function rebuildQueueStructure() {
         }
     });
 
-    // 4. Populate real user bookings (Always takes precedence)
     userBookings.forEach(b => {
         if (b.status === 'Active' || b.status === 'On Weighbridge' || b.status === 'Under Verification') {
             let status = 'wait';
@@ -990,7 +983,6 @@ function rebuildQueueStructure() {
         }
     });
 
-    // Convert map values to sorted array by token number
     const queue = Array.from(queueMap.values());
     queue.sort((a, b) => a.token - b.token);
     return queue;
@@ -1209,7 +1201,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sidebarClose) sidebarClose.onclick = closeMenu;
     if (overlay) overlay.onclick = closeMenu;
 
-    // Navigation Tabs
     const tabs = document.querySelectorAll('.sidebar-tab[data-view]');
     const views = document.querySelectorAll('.view');
 
@@ -1260,7 +1251,6 @@ document.addEventListener('DOMContentLoaded', () => {
     bindClick('identity-btn', () => openModal('auth-modal'));
     bindClick('btn-switch-account', () => { closeMenu(); openModal('auth-modal'); });
 
-    // Profile Modal Open Handler
     bindClick('btn-edit-profile', () => {
         const eighteenYearsAgo = new Date();
         eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
@@ -1288,7 +1278,6 @@ document.addEventListener('DOMContentLoaded', () => {
         openModal('profile-modal');
     });
 
-    // Dynamic Toggle for Save & Verify Button
     const termsCheckbox = document.getElementById('p-terms');
     const saveProfileBtn = document.getElementById('btn-save-profile');
     if (termsCheckbox && saveProfileBtn) {
@@ -1297,7 +1286,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Profile Form Submission
     const profileForm = document.getElementById('profile-form');
     if (profileForm) {
         profileForm.onsubmit = (e) => {
@@ -1400,7 +1388,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Booking Submission Handler
     const bookForm = document.getElementById('book-form');
     if (bookForm) {
         bookForm.onsubmit = (e) => {
