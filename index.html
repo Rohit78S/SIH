@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kisan Connect — Mandi Procurement Ledger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ================= DRAWER SIDEBAR ================= -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="seal">KC</div>
+        <button class="modal-close" id="sidebar-close">&times;</button>
+    </div>
+    <nav class="sidebar-nav">
+        <button class="sidebar-tab active" data-view="dashboard"><span>Dashboard</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="crops"><span>Crop Directory</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="routes"><span>Transit Routes</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="queue"><span>Live Queue</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="bookings"><span>Bookings Ledger</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="payments"><span>MSP Settlements</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="profile"><span>Farmer Record</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="help"><span>Support Desk</span><span>&rsaquo;</span></button>
+        <button class="sidebar-tab" data-view="notifications">
+            <span>Notifications</span>
+            <span class="sidebar-tab-badge notif-badge-counter hidden" id="sidebar-notif-badge">0</span>
+            <span>&rsaquo;</span>
+        </button>
+        <hr style="border:none; border-top:1px solid var(--line); margin: 12px 0;">
+        <button class="sidebar-tab" id="btn-switch-account" style="color:var(--stamp-ink)"><span>Authentication</span><span>Switch</span></button>
+    </nav>
+</aside>
+
+<!-- ================= MASTHEAD ================= -->
+<header class="masthead">
+    <div class="masthead-row">
+        <div class="masthead-left">
+            <button class="menu-btn" id="menu-btn" aria-label="Toggle Navigation">&#9776;</button>
+            <div class="seal">KC</div>
+            <div><div class="masthead-name">Kisan Connect</div></div>
+            <span class="masthead-tag">Mandi procurement ledger</span>
+        </div>
+
+        <div class="masthead-actions" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+            <div class="identity" id="identity-btn" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <div class="identity-mark" id="nav-avatar">G</div>
+                <div class="identity-text" style="display: flex; flex-direction: column; text-align: left;">
+                    <span class="identity-name" id="nav-name">Guest</span>
+                    <span class="identity-role" id="nav-role" style="font-size: 0.72rem; color: var(--ink-faint);">Guest Session</span>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-google-auth-trigger" style="font-size: 0.74rem; padding: 3px 10px; font-weight: 600;">
+                Sign In with Google
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ================= ZONE / GPS BANNER ================= -->
+<div class="banner" id="zone-banner">
+    <div class="banner-row">
+        <div class="banner-msg">
+            <strong>Check Service Catchment Zone</strong>
+            <p>Verify your field coordinates to guarantee direct queue routing.</p>
+        </div>
+        <div class="banner-actions">
+            <button class="btn btn-secondary btn-sm" id="banner-deny">Dismiss</button>
+            <button class="btn btn-primary btn-sm" id="banner-allow">Detect Location</button>
+        </div>
+    </div>
+</div>
+
+<main class="app-main">
+    <!-- ================= NOTIFICATIONS LOG VIEW ================= -->
+    <section class="view" id="notifications">
+        <div class="view-head">
+            <div>
+                <h1>Activity & Mandi Alerts</h1>
+                <p class="view-sub">System-wide audit trail of scale dispatches, assay checks, and GSM dispatches.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-clear-notifications">Clear All</button>
+        </div>
+
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-head"><h2>System Notification Trail</h2></div>
+                <div class="ledger-list" id="notifications-feed-list">
+                    <p style="padding: 16px; text-align: center; color: var(--ink-soft);">No new notifications logged.</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head"><h2>GSM SMS Gateway Logs (NIC-DLT)</h2></div>
+                <div class="ledger-list" id="sms-gateway-logs-list">
+                    <p style="padding: 16px; text-align: center; color: var(--ink-soft);">No SMS logs dispatched.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= DASHBOARD ================= -->
+    <section class="view active" id="dashboard">
+        <div class="view-head">
+            <div>
+                <h1 id="greeting-title">Good day, Farmer</h1>
+                <p class="view-sub">Official mandi token and weighbridge dispatch ledger.</p>
+            </div>
+            <button class="btn btn-primary" id="btn-book-slot">Book Mandi Slot</button>
+        </div>
+
+        <div id="tickets-container" class="ticket-wrapper"></div>
+        <div id="no-ticket-card" class="panel" style="text-align:center; padding: 32px 16px; margin-bottom: 24px;">
+            <p style="font-size:0.92rem; color:var(--ink-soft); margin-bottom: 12px;" id="no-ticket-hint">
+                No procurement passes active today. Complete KCC verification to unlock slot booking.
+            </p>
+            <button class="btn btn-secondary btn-sm" id="btn-book-first">Book Mandi Slot</button>
+        </div>
+
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Live Mandi Queue Readout</h2>
+                    <button class="btn btn-ghost btn-sm" id="refresh-queue-btn">Refresh</button>
+                </div>
+                <div class="readout">
+                    <div>
+                        <div class="readout-label">Now Weighing</div>
+                        <div class="readout-value" id="now-serving">--</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div class="readout-sub" id="countdown-label">Estimated Turn</div>
+                        <div class="readout-value" id="queue-countdown-timer">--:--</div>
+                    </div>
+                </div>
+                <div class="ledger-list" id="mini-queue-list"></div>
+                <p style="font-size:0.75rem; color:var(--ink-faint); margin-top:10px;">
+                    Daily booking quota remaining: <strong id="action-quota-counter">5/5</strong>
+                </p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head"><h2>Procurement Summary</h2></div>
+                <div class="ledger-list">
+                    <div class="ledger-row"><span>Active Bookings</span><span class="ticket-field-value" id="summary-active-count">0</span></div>
+                    <div class="ledger-row"><span>Total Volume Allocated</span><span class="ticket-field-value" id="summary-volume">0 qtl</span></div>
+                    <div class="ledger-row"><span>Operating Center</span><span class="ticket-field-value" id="summary-center">Pending Detection</span></div>
+                    <div class="ledger-row">
+                        <span>Verification Protocol</span>
+                        <span class="tag wait" id="verification-stamp-badge">Not Verified (Locked)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= CROPS DIRECTORY ================= -->
+    <section class="view" id="crops">
+        <div class="view-head">
+            <div>
+                <h1>Procurement Crop Directory</h1>
+                <p class="view-sub">Standard commodities eligible for government floor price procurement across participating mandis.</p>
+            </div>
+        </div>
+        <div class="crops-grid" id="crops-grid"></div>
+    </section>
+
+    <!-- ================= TRANSIT & GOOGLE MAPS ROUTES ================= -->
+    <section class="view" id="routes">
+        <div class="view-head">
+            <div>
+                <h1>Mandi Transit & Navigation</h1>
+                <p class="view-sub">Haulage distance calculations and live Google Maps directions from your location to procurement hubs.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-recalculate-routes">Recalculate Routes</button>
+        </div>
+
+        <div class="panel" style="margin-bottom:20px;">
+            <div class="panel-head">
+                <h2>Interactive Google Maps View</h2>
+                <span class="tag amber" id="maps-route-indicator">Waiting for location</span>
+            </div>
+            <div class="map-embed-wrapper" style="width:100%; height:340px; border-radius:var(--radius-sm); overflow:hidden; border:1px solid var(--line-strong); background:var(--paper);">
+                <iframe
+                        id="gmaps-embed-frame"
+                        width="100%"
+                        height="100%"
+                        style="border:0;"
+                        loading="lazy"
+                        allowfullscreen
+                        referrerpolicy="no-referrer-when-downgrade"
+                        src="https://maps.google.com/maps?q=Techno%20Main%20Salt%20Lake&t=&z=13&ie=UTF8&iwloc=&output=embed">
+                </iframe>
+            </div>
+            <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <span style="font-size:0.82rem; color:var(--ink-soft);" id="gmaps-status-caption">Showing default hub location. Detect your GPS to calculate real routes.</span>
+                <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" id="btn-open-external-maps">
+                    Open Turn-by-Turn in Google Maps &rsaquo;
+                </a>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head"><h2>All Mandi Center Distances</h2></div>
+            <div class="ledger-list" id="routes-center-list"></div>
+        </div>
+    </section>
+
+    <!-- ================= LIVE QUEUE FULL ================= -->
+    <section class="view" id="queue">
+        <div class="view-head">
+            <div>
+                <h1>Procurement Queue</h1>
+                <p class="view-sub" id="full-queue-center-label">Select or detect center to view queue</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-queue-full">Refresh Queue</button>
+        </div>
+        <div class="panel">
+            <div class="ledger-list" id="full-queue-list"></div>
+        </div>
+    </section>
+
+    <!-- ================= BOOKINGS LEDGER ================= -->
+    <section class="view" id="bookings">
+        <div class="view-head">
+            <div>
+                <h1>Procurement Bookings</h1>
+                <p class="view-sub">All active, completed, and archived time slots saved in your ledger.</p>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-book-another">Book Another Slot</button>
+        </div>
+        <div class="panel">
+            <table class="ledger-table" style="font-size:0.86rem;">
+                <thead>
+                <tr style="border-bottom:1px solid var(--line-strong); text-align:left;">
+                    <th style="padding:8px 4px;">Token</th>
+                    <th style="padding:8px 4px;">Date & Window</th>
+                    <th style="padding:8px 4px;">Crop</th>
+                    <th style="padding:8px 4px;">Qty</th>
+                    <th style="padding:8px 4px;">Status</th>
+                    <th style="padding:8px 4px; text-align:right;">Action</th>
+                </tr>
+                </thead>
+                <tbody id="bookings-table-body"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ================= PAYMENTS ================= -->
+    <section class="view" id="payments">
+        <div class="view-head">
+            <div><h1>Payments & Settlements</h1><p class="view-sub">Procurement credit balances automatically cleared upon scale completion.</p></div>
+        </div>
+        <div class="two-col" style="margin-bottom:18px;">
+            <div class="panel">
+                <div class="ticket-field-label">Earnings Cleared This Season</div>
+                <div class="ticket-token" style="font-size:1.6rem; color:var(--crop-ink);" id="payout-cleared-sum">INR 0</div>
+            </div>
+            <div class="panel">
+                <div class="ticket-field-label">Pending Scale Settlement</div>
+                <div class="ticket-token" style="font-size:1.6rem; color:var(--wheat-ink);" id="payout-pending-sum">INR 0</div>
+            </div>
+        </div>
+        <div class="panel">
+            <table class="ledger-table" style="font-size:0.86rem;">
+                <thead>
+                <tr style="border-bottom:1px solid var(--line-strong); text-align:left;">
+                    <th style="padding:8px 4px;">Token</th>
+                    <th style="padding:8px 4px;">Crop & Qty</th>
+                    <th style="padding:8px 4px;">Settlement Amount</th>
+                    <th style="padding:8px 4px;">Status</th>
+                </tr>
+                </thead>
+                <tbody id="payments-table-body"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ================= PROFILE ================= -->
+    <section class="view" id="profile">
+        <div class="view-head">
+            <div><h1>Registered Farmer Record</h1><p class="view-sub">Official procurement identity and land specifications.</p></div>
+            <button class="btn btn-secondary btn-sm" id="btn-edit-profile">Update Record</button>
+        </div>
+        <div class="panel">
+            <div class="record-card">
+                <div class="record-seal-container">
+                    <div class="record-seal" id="profile-seal">G</div>
+                </div>
+                <div class="record-fields">
+                    <div><div class="record-label">Account Auth Type</div><div class="record-value" id="prof-auth-type">Guest Mode</div></div>
+                    <div><div class="record-label">Full Name</div><div class="record-value" id="prof-name">Guest Farmer</div></div>
+                    <div><div class="record-label">Date of Birth</div><div class="record-value" id="prof-dob">Not Provided</div></div>
+                    <div><div class="record-label">Registered Mobile</div><div class="record-value" id="prof-mobile">Not Provided</div></div>
+                    <div><div class="record-label">Kisan Credit Card (9-Digit KCC)</div><div class="record-value" id="prof-kcc">Not Provided</div></div>
+                    <div><div class="record-label">Village / Zone</div><div class="record-value" id="prof-zone">Not Provided</div></div>
+                    <div><div class="record-label">Total Land Holding</div><div class="record-value" id="prof-land">Not Provided</div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= HELP ================= -->
+    <section class="view" id="help">
+        <div class="view-head">
+            <div><h1>Mandi Helpdesk</h1><p class="view-sub">Procurement inquiries and weighbridge dispute handling.</p></div>
+        </div>
+        <div class="panel">
+            <div class="ledger-list">
+                <div class="ledger-row"><div><strong>Toll-free Kisan Call Centre</strong><p style="font-size:0.8rem;color:var(--ink-soft)">Operating hours: 06:00 to 22:00 IST</p></div><button class="btn btn-secondary btn-sm">1800-180-1551</button></div>
+                <div class="ledger-row"><div><strong>Weighbridge Control Office</strong><p style="font-size:0.8rem;color:var(--ink-soft)">Direct desk for moisture and slot verification</p></div><button class="btn btn-secondary btn-sm">033-2334-0001</button></div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="app-footer">Kisan Connect &middot; Mandi Slot Booking & Queue System &middot; Department of Consumer Affairs Architecture</footer>
+
+<!-- ================= MODALS ================= -->
+<div class="modal-backdrop hidden" id="auth-modal">
+    <div class="modal-box">
+        <div class="modal-top">
+            <h3 class="modal-heading">Identify Session</h3>
+            <button class="modal-close" data-close="auth-modal">&times;</button>
+        </div>
+        <p style="font-size:0.85rem; color:var(--ink-soft); margin-bottom:14px;">Select authentication provider:</p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <button class="btn btn-primary btn-block" id="btn-login-google">Sign In with Google</button>
+            <button class="btn btn-secondary btn-block" id="btn-login-guest">Continue as Guest Farmer</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop hidden" id="crop-detail-modal">
+    <div class="modal-box">
+        <div class="modal-top">
+            <h3 class="modal-heading" id="crop-modal-title">Commodity Specifications</h3>
+            <button class="modal-close" data-close="crop-detail-modal">&times;</button>
+        </div>
+        <div class="ledger-list" id="crop-modal-fields" style="margin-bottom:16px;"></div>
+        <div class="note" id="crop-modal-faq"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+            <button class="btn btn-primary btn-block" id="btn-book-from-crop">Book Slot For This Crop</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop hidden" id="zone-modal">
+    <div class="modal-box">
+        <div class="modal-top">
+            <h3 class="modal-heading">Select Catchment Mandi</h3>
+            <button class="modal-close" data-close="zone-modal">&times;</button>
+        </div>
+        <p id="zone-modal-intro" style="font-size:0.85rem; color:var(--ink-soft); margin-bottom:14px;">Multiple service centers are equidistant from your position. Please select one:</p>
+        <div class="ledger-list" id="zone-choice-list"></div>
+    </div>
+</div>
+
+<div class="modal-backdrop hidden" id="book-modal">
+    <div class="modal-box">
+        <div class="modal-top">
+            <h3 class="modal-heading">Book Mandi Weighbridge Slot</h3>
+            <button class="modal-close" data-close="book-modal">&times;</button>
+        </div>
+        <form id="book-form" class="form">
+            <div class="field">
+                <label for="f-grain">Crop Variety</label>
+                <select id="f-grain" required></select>
+            </div>
+            <div class="field">
+                <label for="f-qty">Allotted Quantity (quintals)</label>
+                <input type="number" id="f-qty" min="1" max="1000" placeholder="e.g. 25" required>
+            </div>
+            <div class="field">
+                <label for="f-center">Procurement Mandi</label>
+                <select id="f-center" required></select>
+            </div>
+            <div class="field">
+                <label for="f-date">Procurement Date</label>
+                <input type="date" id="f-date" required>
+            </div>
+            <div class="field">
+                <label for="f-time">Arrival Window</label>
+                <select id="f-time" required>
+                    <option value="08:00–10:00 AM">08:00–10:00 AM</option>
+                    <option value="10:00–12:00 PM">10:00–12:00 PM</option>
+                    <option value="01:00–03:00 PM">01:00–03:00 PM</option>
+                    <option value="03:00–05:00 PM">03:00–05:00 PM</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" data-close="book-modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Reserve Token</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-backdrop hidden" id="profile-modal">
+    <div class="modal-box">
+        <div class="modal-top">
+            <h3 class="modal-heading">Update Farmer Record</h3>
+            <button class="modal-close" data-close="profile-modal">&times;</button>
+        </div>
+        <form id="profile-form" class="form">
+            <div class="field">
+                <label for="p-name">Full Name <span style="color:var(--stamp)">*</span></label>
+                <input type="text" id="p-name" placeholder="Enter your full legal name" required>
+            </div>
+            <div class="field">
+                <label for="p-kcc">Kisan Credit Card (Strict 9-Digit Number) <span style="color:var(--stamp)">*</span></label>
+                <input type="text" id="p-kcc" placeholder="e.g. 984521039" pattern="([0-9]{9}|KCC-[0-9]{9})" title="Must be exactly 9 digits" required>
+                <small style="font-size:0.72rem; color:var(--ink-faint);">Required to unlock the digital mandi weighbridge queue.</small>
+            </div>
+            <div class="field">
+                <label for="p-dob">Date of Birth <span style="color:var(--stamp)">*</span></label>
+                <input type="date" id="p-dob" required>
+                <small style="font-size:0.72rem; color:var(--ink-faint);">Farmer must be at least 18 years of age to register for government procurement.</small>
+            </div>
+            <div class="field">
+                <label for="p-mobile">Registered Mobile</label>
+                <input type="tel" id="p-mobile" placeholder="10-digit mobile number" pattern="[0-9]{10}">
+            </div>
+            <div class="field">
+                <label for="p-zone">Village / Catchment Area</label>
+                <input type="text" id="p-zone" placeholder="e.g. Tarakeswar / Hooghly">
+            </div>
+            <div class="field">
+                <label for="p-land">Land Holding (Acres) <span style="color:var(--stamp)">*</span></label>
+                <input type="number" id="p-land" placeholder="e.g. 3.5" min="0.1" max="100" step="0.1" required>
+                <small style="font-size:0.72rem; color:var(--ink-faint);">Standard ceiling: Up to 100.0 acres per individual title.</small>
+            </div>
+
+            <!-- Mandatory Terms & Conditions Checkbox -->
+            <div class="field" style="margin-top: 14px; padding: 10px; background: var(--paper-raised, #f9f9f9); border: 1px solid var(--line, #ddd); border-radius: 4px;">
+                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 0.8rem; line-height: 1.35; color: var(--ink);">
+                    <input type="checkbox" id="p-terms" required style="margin-top: 2px; cursor: pointer; width: 16px; height: 16px; accent-color: var(--crop-ink, #2e7d32);">
+                    <span>
+                        I declare that the KCC and land details provided are accurate. I accept the <strong>APMC Fair Average Quality (FAQ) norms</strong>, mandatory gate moisture assay deductions, and DBT Treasury disbursement terms. <span style="color:var(--stamp)">*</span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 14px;">
+                <button type="button" class="btn btn-secondary" data-close="profile-modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-profile" disabled>Save & Verify</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ================= MODAL: QUALITY & PAYMENT VERIFICATION SPINNER ================= -->
+<div class="modal-backdrop hidden" id="verification-modal">
+    <div class="modal-box" style="max-width: 440px;">
+        <div class="modal-top">
+            <h3 class="modal-heading">Commodity Inspection in Progress</h3>
+            <button class="modal-close" data-close="verification-modal">&times;</button>
+        </div>
+        <div class="verification-spinner-container">
+            <div class="spinner-seal"></div>
+            <strong style="font-size: 0.96rem; color: var(--ink);">Verifying Grain & Payment Settlement</strong>
+            <p style="font-size: 0.8rem; color: var(--ink-soft); margin-top: 4px;">
+                Token <span id="verif-token-id" style="font-family: var(--font-mono); font-weight:600;">#--</span> is undergoing mandatory moisture and quality assay testing before fund clearance.
+            </p>
+
+            <div class="verification-step-list">
+                <div class="verification-step-item">
+                    <span>Moisture Content Assay (&lt;12%)</span>
+                    <span class="tag done" id="verif-step-1">Checking...</span>
+                </div>
+                <div class="verification-step-item">
+                    <span>Refraction & Dockage Standard</span>
+                    <span class="tag wait" id="verif-step-2">Queued</span>
+                </div>
+                <div class="verification-step-item">
+                    <span>DBT Treasury Account Handshake</span>
+                    <span class="tag wait" id="verif-step-3">Pending</span>
+                </div>
+            </div>
+        </div>
+        <div class="note" style="margin-top: 10px; font-size: 0.78rem;">
+            Funds will reflect under "Earnings Cleared This Season" once laboratory testing seals the assay pass.
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Scripts loaded in correct dependency order -->
+<script src="city.js"></script>
+<script src="notifications.js"></script>
+<script src="server.js"></script>
+</body>
+</html>
