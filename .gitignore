@@ -1,0 +1,14 @@
+# Firebase cache & secrets
+.firebase/
+.firebaserc
+firebase-debug.log*
+firestore-debug.log*
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+
+# OS metadata
+.DS_Store
+Thumbs.db
